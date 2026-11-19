@@ -2,7 +2,6 @@ name: Daily Market Data Update
 
 on:
 schedule:
-# 毎朝 7:00 JST (UTC 22:00) に自動実行（月〜金）
 - cron: '0 22 * * 1-5'
 workflow_dispatch:
 
@@ -20,7 +19,6 @@ uses: actions/checkout@v4
     uses: actions/setup-python@v5
     with:
       python-version: '3.11'
-
   - name: Fetch real market data and update index.html
     run: |
       python3 - << 'EOF'
