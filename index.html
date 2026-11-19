@@ -114,14 +114,14 @@
           シミュレーション期間
         </label>
         <select id="periodSelect" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500 shadow-sm font-medium">
-          <option value="0.2">直近 60 日間 (15分足ベース)</option>
+          <option value="0.2">直近 60 日間（統計未登録）</option>
           <option value="1">過去 1 年間</option>
           <option value="2" selected>過去 2 年間 (標準)</option>
           <option value="3">過去 3 年間</option>
           <option value="5">過去 5 年間</option>
         </select>
         <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-          前日のNASDAQ・SOX実績の方向（上昇/下落）を自動判定し、翌日統計（%）と15分足推移（円/pt）を算出します。
+          NASDAQ・SOXの実際の終値を取得します。過去統計は現在未登録です。
         </p>
       </div>
 
@@ -209,21 +209,21 @@
         <div class="grid grid-cols-2 gap-2 my-2">
           <div>
             <div class="text-[10px] text-slate-400 uppercase tracking-wider">終値</div>
-            <div id="nasdaqClose" class="text-xl font-bold font-mono text-slate-900">18,642.15</div>
+            <div id="nasdaqClose" class="text-xl font-bold font-mono text-slate-900">--</div>
           </div>
           <div>
             <div class="text-[10px] text-slate-400 uppercase tracking-wider">前日比 (騰落率)</div>
-            <div id="nasdaqChg" class="text-xl font-bold font-mono text-down">-1.82%</div>
+            <div id="nasdaqChg" class="text-xl font-bold font-mono text-down">--</div>
           </div>
         </div>
         <div class="pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 space-y-1 font-mono">
           <div class="flex justify-between">
             <span>📅 終値対象日:</span>
-            <strong id="nasdaqTargetDate" class="text-slate-700">2026/11/17 (火)</strong>
+            <strong id="nasdaqTargetDate" class="text-slate-700">--</strong>
           </div>
           <div class="flex justify-between">
             <span>🕒 最終更新日時:</span>
-            <strong id="nasdaqUpdated" class="text-slate-700">2026/11/18 06:15 JST</strong>
+            <strong id="nasdaqUpdated" class="text-slate-700">--</strong>
           </div>
         </div>
       </div>
@@ -242,21 +242,21 @@
         <div class="grid grid-cols-2 gap-2 my-2">
           <div>
             <div class="text-[10px] text-slate-400 uppercase tracking-wider">終値</div>
-            <div id="soxClose" class="text-xl font-bold font-mono text-slate-900">4,850.10</div>
+            <div id="soxClose" class="text-xl font-bold font-mono text-slate-900">--</div>
           </div>
           <div>
             <div class="text-[10px] text-slate-400 uppercase tracking-wider">前日比 (騰落率)</div>
-            <div id="soxChg" class="text-xl font-bold font-mono text-down">-2.95%</div>
+            <div id="soxChg" class="text-xl font-bold font-mono text-down">--</div>
           </div>
         </div>
         <div class="pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 space-y-1 font-mono">
           <div class="flex justify-between">
             <span>📅 終値対象日:</span>
-            <strong id="soxTargetDate" class="text-slate-700">2026/11/17 (火)</strong>
+            <strong id="soxTargetDate" class="text-slate-700">--</strong>
           </div>
           <div class="flex justify-between">
             <span>🕒 最終更新日時:</span>
-            <strong id="soxUpdated" class="text-slate-700">2026/11/18 06:15 JST</strong>
+            <strong id="soxUpdated" class="text-slate-700">--</strong>
           </div>
         </div>
       </div>
@@ -298,14 +298,14 @@
         <div>
           <div class="flex flex-wrap items-center gap-2">
             <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              11月18日(水) 取引当日の 15分刻み想定株価推移 (9:00 〜 15:30)
+              取引当日の実際の株価推移（15分間隔）
             </h3>
             <span id="chartPatternBadge" class="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium border border-slate-200">
-              自動判定パターンの想定推移 (金額表記)
+              実データ読み込み中
             </span>
           </div>
           <p class="text-[11px] text-slate-400 mt-1">
-            2026/11/18 取引当日の15分刻み株価目安（単位: 円 / pt）。上部のカードと下部の実績一覧はパーセント(%)表示、本グラフのみ金額表示です。
+            市場から取得した15分区間の終値（単位: 円 / pt）。時刻は区間開始時刻。配信遅延あり。
           </p>
         </div>
 
@@ -332,7 +332,7 @@
       </div>
       <div class="flex flex-wrap justify-between items-center mt-2 text-[10px] text-slate-400 gap-2">
         <span>※前場: 09:00 - 11:30 / 昼休み: 11:30 - 12:30 / 後場: 12:30 - 15:30（単位: 円/pt）</span>
-        <span>完全無料構成（直近60日15分足統計モデル）</span>
+        <span>実データ表示（更新間隔は目安・配信遅延あり）</span>
       </div>
     </div>
 
@@ -341,7 +341,7 @@
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div class="flex items-center gap-2">
           <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            類似動向の過去実績一覧
+            類似動向の過去実績一覧（検証済みデータ未登録）
           </h3>
           <span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono font-medium border border-slate-200">
             抽出件数: <span id="hitCount" class="font-bold text-slate-900">--</span> 件
@@ -380,35 +380,7 @@
 
   <script>
     // 過去データ（全4パターン対応・小幅変動も含む自動判別用データベース）
-    const mockDatabase = [
-      // 両方下落データ (NASDAQ < 0 & SOX < 0)
-      { date: "2026-02-12", nasdaq: -3.45, sox: -4.82, nikkei: -2.31, telec: -4.15, semi: -3.90 },
-      { date: "2026-01-22", nasdaq: -2.25, sox: -3.55, nikkei: -1.65, telec: -3.10, semi: -2.80 },
-      { date: "2025-11-04", nasdaq: -3.12, sox: -3.65, nikkei: -1.85, telec: -3.40, semi: -3.10 },
-      { date: "2025-09-03", nasdaq: -3.26, sox: -5.40, nikkei: -2.48, telec: -4.80, semi: -4.25 },
-      { date: "2025-07-24", nasdaq: -2.30, sox: -3.80, nikkei: -1.55, telec: -2.85, semi: -2.55 },
-      { date: "2025-02-10", nasdaq: -0.25, sox: -0.45, nikkei: -0.18, telec: -0.52, semi: -0.40 },
-      { date: "2024-12-19", nasdaq: -3.05, sox: -3.88, nikkei: -1.60, telec: -2.90, semi: -2.75 },
-      { date: "2024-07-17", nasdaq: -3.64, sox: -6.81, nikkei: -2.43, telec: -5.60, semi: -4.95 },
-
-      // 両方上昇データ (NASDAQ > 0 & SOX > 0)
-      { date: "2026-02-05", nasdaq: 2.10, sox: 3.40, nikkei: 1.80, telec: 3.20, semi: 2.95 },
-      { date: "2025-12-11", nasdaq: 1.85, sox: 2.90, nikkei: 1.45, telec: 2.75, semi: 2.40 },
-      { date: "2025-10-28", nasdaq: 2.45, sox: 4.15, nikkei: 2.10, telec: 4.05, semi: 3.70 },
-      { date: "2025-08-14", nasdaq: 1.60, sox: 2.20, nikkei: 1.25, telec: 2.30, semi: 2.05 },
-      { date: "2025-05-15", nasdaq: 2.90, sox: 3.80, nikkei: 2.35, telec: 4.50, semi: 4.10 },
-      { date: "2024-11-06", nasdaq: 2.95, sox: 3.12, nikkei: 2.61, telec: 3.85, semi: 3.40 },
-      { date: "2024-09-19", nasdaq: 2.51, sox: 4.27, nikkei: 2.13, telec: 4.65, semi: 4.20 },
-
-      // NASDAQ上昇・SOX下落 (NASDAQ > 0 & SOX < 0)
-      { date: "2025-10-15", nasdaq: 0.85, sox: -1.20, nikkei: 0.20, telec: -0.90, semi: -0.65 },
-      { date: "2025-03-20", nasdaq: 1.15, sox: -0.80, nikkei: 0.45, telec: -0.40, semi: -0.30 },
-      { date: "2024-08-22", nasdaq: 0.55, sox: -1.40, nikkei: 0.10, telec: -1.15, semi: -0.85 },
-
-      // NASDAQ下落・SOX上昇 (NASDAQ < 0 & SOX > 0)
-      { date: "2025-04-02", nasdaq: -0.95, sox: 1.40, nikkei: -0.10, telec: 1.25, semi: 1.05 },
-      { date: "2025-01-14", nasdaq: -0.40, sox: 1.80, nikkei: 0.05, telec: 1.50, semi: 1.30 }
-    ];
+    const mockDatabase = []; // 架空の過去実績は表示しない
 
     // 15分刻みの取引時間ラベル (09:00 ～ 15:30)
     const timeLabels = [
@@ -417,37 +389,36 @@
     ];
 
     // 4パターンごとの15分刻み想定株価推移 (金額/pt表記)
-    const intradayModels = {
-      both_down: {
-        nikkei: [37800, 37680, 37740, 37810, 37870, 37910, 37890, 37850, 37830, 37840, 37820, 37830, 37810, 37780, 37750, 37730, 37710, 37690, 37670, 37650, 37630, 37610, 37600, 37590],
-        telec:  [22680, 22540, 22610, 22700, 22750, 22800, 22760, 22715, 22680, 22690, 22670, 22680, 22645, 22610, 22575, 22560, 22550, 22535, 22530, 22525, 22525, 22525, 22525, 22525],
-        semi:   [2180, 2169, 2176, 2182, 2186, 2189, 2187, 2182, 2180, 2181, 2179, 2180, 2177, 2173, 2170, 2168, 2167, 2166, 2165, 2163, 2163, 2162, 2162, 2162]
-      },
-      both_up: {
-        nikkei: [38960, 39050, 39110, 39150, 39200, 39220, 39200, 39180, 39190, 39200, 39180, 39180, 39190, 39200, 39210, 39220, 39210, 39200, 39190, 39180, 39180, 39180, 39180, 39180],
-        telec:  [24040, 24135, 24205, 24250, 24300, 24320, 24300, 24275, 24285, 24300, 24275, 24275, 24285, 24300, 24310, 24300, 24275, 24260, 24250, 24250, 24250, 24250, 24250, 24250],
-        semi:   [2295, 2303, 2310, 2313, 2318, 2320, 2318, 2316, 2318, 2319, 2318, 2318, 2318, 2319, 2320, 2319, 2318, 2317, 2316, 2316, 2316, 2316, 2316, 2316]
-      },
-      nasdaq_up_sox_down: {
-        nikkei: [38615, 38650, 38670, 38690, 38670, 38650, 38630, 38615, 38600, 38595, 38585, 38585, 38595, 38605, 38615, 38595, 38585, 38575, 38575, 38575, 38575, 38575, 38575, 38575],
-        telec:  [23360, 23290, 23265, 23300, 23335, 23350, 23335, 23325, 23310, 23300, 23290, 23290, 23285, 23275, 23270, 23275, 23285, 23290, 23290, 23290, 23290, 23290, 23290, 23290],
-        semi:   [2241, 2235, 2233, 2236, 2238, 2240, 2238, 2237, 2236, 2236, 2235, 2235, 2234, 2234, 2233, 2234, 2234, 2235, 2235, 2235, 2235, 2235, 2235, 2235]
-      },
-      nasdaq_down_sox_up: {
-        nikkei: [38345, 38305, 38325, 38385, 38420, 38440, 38460, 38480, 38470, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460],
-        telec:  [23690, 23760, 23805, 23840, 23850, 23830, 23815, 23805, 23810, 23815, 23805, 23805, 23810, 23815, 23820, 23815, 23805, 23800, 23795, 23795, 23795, 23795, 23795, 23795],
-        semi:   [2265, 2270, 2273, 2277, 2278, 2276, 2275, 2273, 2274, 2275, 2273, 2273, 2274, 2275, 2275, 2275, 2273, 2273, 2273, 2273, 2273, 2273, 2273, 2273]
-      }
-    };
+    const intradayModels = {}; // 実データを読み込む
 
     // 前日米国実績状態（11月17日基準データ）
-    const currentOvernightState = {
-      nasdaqDate: "2026/11/17 (火)",
-      soxDate: "2026/11/17 (火)",
-      updatedAt: "2026/11/18 06:15 JST",
-      nasdaq: -1.82,
-      sox: -2.95
-    };
+    const currentOvernightState = {nasdaqDate: '--', soxDate: '--', updatedAt: '--', nasdaq: 0, sox: 0};
+    let liveMarket = null;
+    const fmtJst = value => value ? new Date(value).toLocaleString('ja-JP', {timeZone:'Asia/Tokyo', hour12:false}) + ' JST' : '--';
+    const dateJst = value => value ? value.replaceAll('-', '/') : '--';
+    async function loadMarket() {
+      try {
+        const response = await fetch('./data/market.json?t=' + Date.now(), {cache:'no-store'});
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        liveMarket = data;
+        for (const [key, prefix] of [['nasdaq','nasdaq'], ['sox','sox']]) {
+          const quote = data.us?.[key];
+          document.getElementById(prefix+'Close').textContent = quote?.close != null ? Number(quote.close).toLocaleString('ja-JP',{maximumFractionDigits:2}) : '未取得';
+          document.getElementById(prefix+'Chg').textContent = quote?.change_pct != null ? (quote.change_pct>0?'+':'') + Number(quote.change_pct).toFixed(2) + '%' : '--';
+          document.getElementById(prefix+'TargetDate').textContent = dateJst(quote?.date);
+          document.getElementById(prefix+'Updated').textContent = fmtJst(quote?.fetched_at);
+        }
+        const nq = data.us?.nasdaq, sq = data.us?.sox;
+        currentOvernightState.nasdaq = nq?.change_pct ?? 0;
+        currentOvernightState.sox = sq?.change_pct ?? 0;
+        statusSubText.textContent = nq && sq ? `NASDAQ ${nq.change_pct.toFixed(2)}% / SOX ${sq.change_pct.toFixed(2)}%` : '米国市場データ未取得';
+        updateDashboard();
+      } catch (e) {
+        console.error('株価データ読み込み失敗',e);
+        chartPatternBadge.textContent = 'データ取得失敗';
+      }
+    }
 
     // DOM参照
     const periodSelect = document.getElementById('periodSelect');
@@ -483,6 +454,7 @@
     // 朝7:00 通知プレビュー（アラート）表示
     function triggerMorningToast() {
       const container = document.getElementById('toast-container');
+      if (!liveMarket?.us?.nasdaq || !liveMarket?.us?.sox) { alert('米国市場の実データがまだ取得できていません'); return; }
       const isDrop = currentOvernightState.nasdaq < 0 || currentOvernightState.sox < 0;
       const borderCol = isDrop ? 'border-orange-500' : 'border-red-500';
       const badgeBg = isDrop ? 'bg-orange-500' : 'bg-red-500';
@@ -505,7 +477,7 @@
             <p class="text-xs font-bold text-white mt-1">
               NASDAQ: ${currentOvernightState.nasdaq > 0 ? '+' : ''}${currentOvernightState.nasdaq}% / SOX: ${currentOvernightState.sox > 0 ? '+' : ''}${currentOvernightState.sox}%
             </p>
-            <p class="text-[11px] text-slate-300 mt-1">11/18 15分足推移（円/pt）を自動更新済み</p>
+            <p class="text-[11px] text-slate-300 mt-1">市場データの更新状況はグラフ上部に表示</p>
           </div>
         </div>
       `;
@@ -520,7 +492,7 @@
 
     function refreshData() {
       try {
-        updateDashboard();
+        loadMarket();
       } catch (err) {
         console.error('データ更新エラー:', err);
       }
@@ -531,7 +503,17 @@
       const canvasEl = document.getElementById('intradayChart');
       if (!canvasEl) return;
       const ctx = canvasEl.getContext('2d');
-      const model = intradayModels[patternKey] || intradayModels.both_down;
+      const market = liveMarket?.intraday || {};
+      const allDates = Object.values(market).map(x=>x?.date).filter(Boolean);
+      const chartDate = allDates.length ? allDates.sort().at(-1) : null;
+      const sameDay = key => market[key]?.date === chartDate ? market[key].points : [];
+      const labels = [...new Set(['nikkei','telec','semi'].flatMap(key => sameDay(key).map(p=>p.time)))].sort();
+      const series = key => {
+        const points = new Map(sameDay(key).map(p=>[p.time,p.price]));
+        return labels.map(t=>points.get(t) ?? null);
+      };
+      const model = {nikkei:series('nikkei'),telec:series('telec'),semi:series('semi')};
+      chartPatternBadge.textContent = chartDate ? `${chartDate} 実データ / 最終取得 ${fmtJst(liveMarket?.fetched_at)}` : '実データ未取得';
 
       const showNikkei = document.getElementById('toggleNikkei').checked;
       const showTelec = document.getElementById('toggleTelec').checked;
@@ -591,7 +573,7 @@
       intradayChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: timeLabels,
+          labels: labels,
           datasets: datasets
         },
         options: {
@@ -693,7 +675,7 @@
       }
 
       statusSubText.textContent = `前日実績: NASDAQ ${currentOvernightState.nasdaq > 0 ? '+' : ''}${currentOvernightState.nasdaq}% / SOX ${currentOvernightState.sox > 0 ? '+' : ''}${currentOvernightState.sox}%`;
-      chartPatternBadge.textContent = `${patternBadgeText} 時の想定15分足推移 (金額表記)`;
+      // 実データの日時・取得状況は renderIntradayChart で表示する
 
       let filtered = mockDatabase.filter(item => {
         if (patternKey === 'both_up') return item.nasdaq > 0 && item.sox > 0;
@@ -702,7 +684,7 @@
         return item.nasdaq < 0 && item.sox > 0;
       });
 
-      const currentYear = 2026;
+      const currentYear = new Date().getFullYear();
       filtered = filtered.filter(item => {
         const itemYear = parseInt(item.date.split('-')[0], 10);
         return (currentYear - itemYear) < periodYears;
@@ -807,7 +789,8 @@
 
     // 初期実行
     window.addEventListener('DOMContentLoaded', () => {
-      refreshData();
+      loadMarket();
+      setInterval(loadMarket, 60 * 1000);
     });
   </script>
 </body>
