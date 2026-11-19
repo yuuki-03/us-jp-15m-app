@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>米国ハイテク・半導体急変動アラート＆15分足日中推移アプリ</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Fonts: Inter & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Inter"', '"Noto Sans JP"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .clean-card {
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+      border-radius: 0.75rem;
+    }
+    .text-down {
+      color: #ea580c; /* 下落 (オレンジ) */
+    }
+    .text-up {
+      color: #dc2626; /* 急騰・上昇アクセント (レッド) / プラス表示 */
+    }
+    .text-pos {
+      color: #059669; /* プラス (エメラルド) */
+    }
+    @keyframes slideInRight {
+      from {
+        transform: translateX(110%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    .toast-enter {
+      animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .toast-exit {
+      animation: fadeOut 0.3s ease-out forwards;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col md:flex-row antialiased bg-slate-50 text-slate-900">
+
+  <!-- 朝7:00 通知テスト用トーストコンテナ -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- モバイルヘッダー -->
+  <div class="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 sticky top-0 z-30">
+    <div class="font-bold text-sm text-slate-800 flex items-center gap-2">
+      <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+      <span>Nasdaq & SOX 日中推移アプリ</span>
+    </div>
+    <button type="button" id="toggleSidebarBtn" class="px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 rounded-lg border border-slate-300">
+      ⚙️ 設定・指標
+    </button>
+  </div>
+
+  <!-- 左サイドバー -->
+  <aside id="sidebar" class="w-full md:w-80 bg-white border-r border-slate-200 p-5 flex-shrink-0 hidden md:flex md:flex-col justify-between min-h-screen">
+    <div class="space-y-6">
+      <!-- 識別ヘッダー -->
+      <div class="hidden md:flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-slate-900"></span>
+          <span class="font-bold text-sm text-slate-900 tracking-tight">US-JP アラート＆15分足</span>
+        </div>
+        <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono border border-slate-200">FREE v3.0</span>
+      </div>
+
+      <!-- シミュレーション期間 -->
+      <div>
+        <label for="periodSelect" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+          シミュレーション期間
+        </label>
+        <select id="periodSelect" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500 shadow-sm font-medium">
+          <option value="0.2">直近 60 日間 (15分足ベース)</option>
+          <option value="1">過去 1 年間</option>
+          <option value="2" selected>過去 2 年間 (標準)</option>
+          <option value="3">過去 3 年間</option>
+          <option value="5">過去 5 年間</option>
+        </select>
+        <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+          前日のNASDAQ・SOX実績の方向（上昇/下落）を自動判定し、翌日統計（%）と15分足推移（円/pt）を算出します。
+        </p>
+      </div>
+
+      <!-- 自動判定ステータス＆アラート通知テスト -->
+      <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
+        <div class="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+          <span>前日実績の自動判定</span>
+          <span class="text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">完全自動</span>
+        </div>
+        <div id="statusBadge" class="text-xs font-bold text-slate-900 flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+          <span>自動分析中...</span>
+        </div>
+        <div id="statusSubText" class="text-[11px] text-slate-500 font-mono pt-1 border-t border-slate-200/70">
+          NASDAQ: --% / SOX: --%
+        </div>
+        <button type="button" onclick="triggerMorningToast()" class="w-full mt-1 py-2 px-3 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-lg border border-slate-300 shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+          <span>🔔 朝7:00 通知プレビュー</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 本日の米国重要経済指標スケジュール -->
+    <div class="pt-5 border-t border-slate-200 mt-6">
+      <div class="flex items-center justify-between mb-2.5">
+        <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+          <span>📅</span> 本日の米国重要経済指標
+        </span>
+        <span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 font-mono rounded font-semibold border border-slate-200">本日予定</span>
+      </div>
+
+      <div class="bg-white rounded-lg p-3 border border-slate-200 space-y-2.5 shadow-sm text-xs">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div>
+            <span class="font-mono text-slate-500 text-[11px]">22:30</span>
+            <span class="ml-1.5 font-bold text-slate-800">新規失業保険申請件数</span>
+          </div>
+          <span class="text-[10px] text-red-600 font-bold px-1.5 py-0.5 bg-red-50 rounded border border-red-100">★★★</span>
+        </div>
+
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div>
+            <span class="font-mono text-slate-500 text-[11px]">22:30</span>
+            <span class="ml-1.5 font-medium text-slate-700">フィラデルフィア連銀景況</span>
+          </div>
+          <span class="text-[10px] text-amber-600 font-bold px-1.5 py-0.5 bg-amber-50 rounded border border-amber-100">★★☆</span>
+        </div>
+
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div>
+            <span class="font-mono text-slate-500 text-[11px]">24:00</span>
+            <span class="ml-1.5 font-medium text-slate-700">中古住宅販売件数</span>
+          </div>
+          <span class="text-[10px] text-amber-600 font-bold px-1.5 py-0.5 bg-amber-50 rounded border border-amber-100">★★☆</span>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="font-mono text-slate-500 text-[11px]">24:00</span>
+            <span class="ml-1.5 font-medium text-slate-700">景気先行指標総合指数</span>
+          </div>
+          <span class="text-[10px] text-slate-500 font-bold px-1.5 py-0.5 bg-slate-50 rounded border border-slate-200">★☆☆</span>
+        </div>
+      </div>
+      <div class="mt-2 text-[10px] text-slate-400 text-right">※ 日本時間（JST）予定時刻</div>
+    </div>
+  </aside>
+
+  <!-- メイン表示エリア -->
+  <main class="flex-1 p-4 md:p-6 overflow-y-auto space-y-5">
+
+    <!-- 米国市場カード (NASDAQ & SOX それぞれ個別の終値対象日・最終更新日時) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- NASDAQカード -->
+      <div class="clean-card p-4">
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+            <h2 class="text-xs font-bold text-slate-800">NASDAQ 総合指数 (^IXIC)</h2>
+          </div>
+          <button type="button" onclick="refreshData()" class="text-[11px] text-slate-500 hover:text-slate-800 transition flex items-center gap-1 cursor-pointer">
+            <span>🔄</span> 更新
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 my-2">
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider">終値</div>
+            <div id="nasdaqClose" class="text-xl font-bold font-mono text-slate-900">18,642.15</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider">前日比 (騰落率)</div>
+            <div id="nasdaqChg" class="text-xl font-bold font-mono text-down">-1.82%</div>
+          </div>
+        </div>
+        <div class="pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 space-y-1 font-mono">
+          <div class="flex justify-between">
+            <span>📅 終値対象日:</span>
+            <strong id="nasdaqTargetDate" class="text-slate-700">2026/11/17 (火)</strong>
+          </div>
+          <div class="flex justify-between">
+            <span>🕒 最終更新日時:</span>
+            <strong id="nasdaqUpdated" class="text-slate-700">2026/11/18 06:15 JST</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- SOXカード -->
+      <div class="clean-card p-4">
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+            <h2 class="text-xs font-bold text-slate-800">SOX (フィラデルフィア半導体株指数)</h2>
+          </div>
+          <button type="button" onclick="refreshData()" class="text-[11px] text-slate-500 hover:text-slate-800 transition flex items-center gap-1 cursor-pointer">
+            <span>🔄</span> 更新
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 my-2">
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider">終値</div>
+            <div id="soxClose" class="text-xl font-bold font-mono text-slate-900">4,850.10</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wider">前日比 (騰落率)</div>
+            <div id="soxChg" class="text-xl font-bold font-mono text-down">-2.95%</div>
+          </div>
+        </div>
+        <div class="pt-2.5 border-t border-slate-100 text-[11px] text-slate-500 space-y-1 font-mono">
+          <div class="flex justify-between">
+            <span>📅 終値対象日:</span>
+            <strong id="soxTargetDate" class="text-slate-700">2026/11/17 (火)</strong>
+          </div>
+          <div class="flex justify-between">
+            <span>🕒 最終更新日時:</span>
+            <strong id="soxUpdated" class="text-slate-700">2026/11/18 06:15 JST</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 翌日パフォーマンス サマリーカード (パーセント表示維持) -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="clean-card p-4">
+        <div class="text-xs font-bold text-slate-500 mb-1">翌日 日経平均 (^N225)</div>
+        <div id="metricNikkei" class="text-3xl font-bold font-mono text-down mb-2">--</div>
+        <div class="flex items-center justify-between text-xs text-slate-500 pt-2.5 border-t border-slate-100">
+          <span id="labelNikkeiRate">確率</span>
+          <span id="winrateNikkei" class="font-mono text-slate-900 font-bold">--%</span>
+        </div>
+      </div>
+
+      <div class="clean-card p-4 border-l-4 border-l-slate-800">
+        <div class="text-xs font-bold text-slate-500 mb-1">翌日 東京エレクトロン (8035.T)</div>
+        <div id="metricTelec" class="text-3xl font-bold font-mono text-down mb-2">--</div>
+        <div class="flex items-center justify-between text-xs text-slate-500 pt-2.5 border-t border-slate-100">
+          <span id="labelTelecRate">確率</span>
+          <span id="winrateTelec" class="font-mono text-slate-900 font-bold">--%</span>
+        </div>
+      </div>
+
+      <div class="clean-card p-4 border-l-4 border-l-slate-800">
+        <div class="text-xs font-bold text-slate-500 mb-1">翌日 半導体ETF (2644.T)</div>
+        <div id="metricSemi" class="text-3xl font-bold font-mono text-down mb-2">--</div>
+        <div class="flex items-center justify-between text-xs text-slate-500 pt-2.5 border-t border-slate-100">
+          <span id="labelSemiRate">確率</span>
+          <span id="winrateSemi" class="font-mono text-slate-900 font-bold">--%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 取引当日 15分刻み日中値動き推移チャート (金額/pt表示) -->
+    <div class="clean-card p-4">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-100">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              11月18日(水) 取引当日の 15分刻み想定株価推移 (9:00 〜 15:30)
+            </h3>
+            <span id="chartPatternBadge" class="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium border border-slate-200">
+              自動判定パターンの想定推移 (金額表記)
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">
+            2026/11/18 取引当日の15分刻み株価目安（単位: 円 / pt）。上部のカードと下部の実績一覧はパーセント(%)表示、本グラフのみ金額表示です。
+          </p>
+        </div>
+
+        <!-- 銘柄表示トグル -->
+        <div class="flex items-center gap-3 text-xs font-medium">
+          <label class="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" id="toggleNikkei" checked class="rounded text-blue-600 focus:ring-0">
+            <span class="text-blue-600 font-bold">日経平均</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" id="toggleTelec" checked class="rounded text-amber-600 focus:ring-0">
+            <span class="text-amber-600 font-bold">東京エレ</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" id="toggleSemi" checked class="rounded text-emerald-600 focus:ring-0">
+            <span class="text-emerald-600 font-bold">半導体ETF</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- チャートキャンバス -->
+      <div class="relative w-full h-72">
+        <canvas id="intradayChart"></canvas>
+      </div>
+      <div class="flex flex-wrap justify-between items-center mt-2 text-[10px] text-slate-400 gap-2">
+        <span>※前場: 09:00 - 11:30 / 昼休み: 11:30 - 12:30 / 後場: 12:30 - 15:30（単位: 円/pt）</span>
+        <span>完全無料構成（直近60日15分足統計モデル）</span>
+      </div>
+    </div>
+
+    <!-- 過去の一致履歴データ一覧 (パーセント表示維持) -->
+    <div class="clean-card p-4">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+        <div class="flex items-center gap-2">
+          <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            類似動向の過去実績一覧
+          </h3>
+          <span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono font-medium border border-slate-200">
+            抽出件数: <span id="hitCount" class="font-bold text-slate-900">--</span> 件
+          </span>
+        </div>
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <input type="text" id="searchInput" placeholder="日付で検索 (例: 2025)..." class="w-full sm:w-48 bg-white border border-slate-300 rounded-md px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-slate-500 shadow-sm">
+          <button type="button" onclick="exportCSV()" class="px-3 py-1.5 bg-slate-100 text-xs font-semibold text-slate-700 rounded-md border border-slate-300 hover:bg-slate-200 shadow-sm whitespace-nowrap cursor-pointer">
+            📥 CSV保存
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto rounded-lg border border-slate-200">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-100 text-slate-600 font-mono border-b border-slate-200">
+              <th class="p-3">日付 (DATE)</th>
+              <th class="p-3 text-right">NASDAQ (%)</th>
+              <th class="p-3 text-right">SOX (%)</th>
+              <th class="p-3 text-right bg-slate-50/80">翌日 日経平均 (%)</th>
+              <th class="p-3 text-right bg-slate-50/80">翌日 東京エレ (8035) (%)</th>
+              <th class="p-3 text-right bg-slate-50/80">翌日 半導体ETF (2644) (%)</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-100 font-mono">
+            <!-- JavaScriptによる動的描画 -->
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-3 text-right text-[11px] text-slate-400">
+        ※ 騰落率はすべて前日終値に対する比較値（%）です。
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // 過去データ（全4パターン対応・小幅変動も含む自動判別用データベース）
+    const mockDatabase = [
+      // 両方下落データ (NASDAQ < 0 & SOX < 0)
+      { date: "2026-02-12", nasdaq: -3.45, sox: -4.82, nikkei: -2.31, telec: -4.15, semi: -3.90 },
+      { date: "2026-01-22", nasdaq: -2.25, sox: -3.55, nikkei: -1.65, telec: -3.10, semi: -2.80 },
+      { date: "2025-11-04", nasdaq: -3.12, sox: -3.65, nikkei: -1.85, telec: -3.40, semi: -3.10 },
+      { date: "2025-09-03", nasdaq: -3.26, sox: -5.40, nikkei: -2.48, telec: -4.80, semi: -4.25 },
+      { date: "2025-07-24", nasdaq: -2.30, sox: -3.80, nikkei: -1.55, telec: -2.85, semi: -2.55 },
+      { date: "2025-02-10", nasdaq: -0.25, sox: -0.45, nikkei: -0.18, telec: -0.52, semi: -0.40 },
+      { date: "2024-12-19", nasdaq: -3.05, sox: -3.88, nikkei: -1.60, telec: -2.90, semi: -2.75 },
+      { date: "2024-07-17", nasdaq: -3.64, sox: -6.81, nikkei: -2.43, telec: -5.60, semi: -4.95 },
+
+      // 両方上昇データ (NASDAQ > 0 & SOX > 0)
+      { date: "2026-02-05", nasdaq: 2.10, sox: 3.40, nikkei: 1.80, telec: 3.20, semi: 2.95 },
+      { date: "2025-12-11", nasdaq: 1.85, sox: 2.90, nikkei: 1.45, telec: 2.75, semi: 2.40 },
+      { date: "2025-10-28", nasdaq: 2.45, sox: 4.15, nikkei: 2.10, telec: 4.05, semi: 3.70 },
+      { date: "2025-08-14", nasdaq: 1.60, sox: 2.20, nikkei: 1.25, telec: 2.30, semi: 2.05 },
+      { date: "2025-05-15", nasdaq: 2.90, sox: 3.80, nikkei: 2.35, telec: 4.50, semi: 4.10 },
+      { date: "2024-11-06", nasdaq: 2.95, sox: 3.12, nikkei: 2.61, telec: 3.85, semi: 3.40 },
+      { date: "2024-09-19", nasdaq: 2.51, sox: 4.27, nikkei: 2.13, telec: 4.65, semi: 4.20 },
+
+      // NASDAQ上昇・SOX下落 (NASDAQ > 0 & SOX < 0)
+      { date: "2025-10-15", nasdaq: 0.85, sox: -1.20, nikkei: 0.20, telec: -0.90, semi: -0.65 },
+      { date: "2025-03-20", nasdaq: 1.15, sox: -0.80, nikkei: 0.45, telec: -0.40, semi: -0.30 },
+      { date: "2024-08-22", nasdaq: 0.55, sox: -1.40, nikkei: 0.10, telec: -1.15, semi: -0.85 },
+
+      // NASDAQ下落・SOX上昇 (NASDAQ < 0 & SOX > 0)
+      { date: "2025-04-02", nasdaq: -0.95, sox: 1.40, nikkei: -0.10, telec: 1.25, semi: 1.05 },
+      { date: "2025-01-14", nasdaq: -0.40, sox: 1.80, nikkei: 0.05, telec: 1.50, semi: 1.30 }
+    ];
+
+    // 15分刻みの取引時間ラベル (09:00 ～ 15:30)
+    const timeLabels = [
+      '09:00', '09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30',
+      '12:30', '12:45', '13:00', '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45', '15:00', '15:15', '15:30'
+    ];
+
+    // 4パターンごとの15分刻み想定株価推移 (金額/pt表記)
+    const intradayModels = {
+      both_down: {
+        nikkei: [37800, 37680, 37740, 37810, 37870, 37910, 37890, 37850, 37830, 37840, 37820, 37830, 37810, 37780, 37750, 37730, 37710, 37690, 37670, 37650, 37630, 37610, 37600, 37590],
+        telec:  [22680, 22540, 22610, 22700, 22750, 22800, 22760, 22715, 22680, 22690, 22670, 22680, 22645, 22610, 22575, 22560, 22550, 22535, 22530, 22525, 22525, 22525, 22525, 22525],
+        semi:   [2180, 2169, 2176, 2182, 2186, 2189, 2187, 2182, 2180, 2181, 2179, 2180, 2177, 2173, 2170, 2168, 2167, 2166, 2165, 2163, 2163, 2162, 2162, 2162]
+      },
+      both_up: {
+        nikkei: [38960, 39050, 39110, 39150, 39200, 39220, 39200, 39180, 39190, 39200, 39180, 39180, 39190, 39200, 39210, 39220, 39210, 39200, 39190, 39180, 39180, 39180, 39180, 39180],
+        telec:  [24040, 24135, 24205, 24250, 24300, 24320, 24300, 24275, 24285, 24300, 24275, 24275, 24285, 24300, 24310, 24300, 24275, 24260, 24250, 24250, 24250, 24250, 24250, 24250],
+        semi:   [2295, 2303, 2310, 2313, 2318, 2320, 2318, 2316, 2318, 2319, 2318, 2318, 2318, 2319, 2320, 2319, 2318, 2317, 2316, 2316, 2316, 2316, 2316, 2316]
+      },
+      nasdaq_up_sox_down: {
+        nikkei: [38615, 38650, 38670, 38690, 38670, 38650, 38630, 38615, 38600, 38595, 38585, 38585, 38595, 38605, 38615, 38595, 38585, 38575, 38575, 38575, 38575, 38575, 38575, 38575],
+        telec:  [23360, 23290, 23265, 23300, 23335, 23350, 23335, 23325, 23310, 23300, 23290, 23290, 23285, 23275, 23270, 23275, 23285, 23290, 23290, 23290, 23290, 23290, 23290, 23290],
+        semi:   [2241, 2235, 2233, 2236, 2238, 2240, 2238, 2237, 2236, 2236, 2235, 2235, 2234, 2234, 2233, 2234, 2234, 2235, 2235, 2235, 2235, 2235, 2235, 2235]
+      },
+      nasdaq_down_sox_up: {
+        nikkei: [38345, 38305, 38325, 38385, 38420, 38440, 38460, 38480, 38470, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460, 38460],
+        telec:  [23690, 23760, 23805, 23840, 23850, 23830, 23815, 23805, 23810, 23815, 23805, 23805, 23810, 23815, 23820, 23815, 23805, 23800, 23795, 23795, 23795, 23795, 23795, 23795],
+        semi:   [2265, 2270, 2273, 2277, 2278, 2276, 2275, 2273, 2274, 2275, 2273, 2273, 2274, 2275, 2275, 2275, 2273, 2273, 2273, 2273, 2273, 2273, 2273, 2273]
+      }
+    };
+
+    // 前日米国実績状態（11月17日基準データ）
+    const currentOvernightState = {
+      nasdaqDate: "2026/11/17 (火)",
+      soxDate: "2026/11/17 (火)",
+      updatedAt: "2026/11/18 06:15 JST",
+      nasdaq: -1.82,
+      sox: -2.95
+    };
+
+    // DOM参照
+    const periodSelect = document.getElementById('periodSelect');
+    const searchInput = document.getElementById('searchInput');
+    const statusBadge = document.getElementById('statusBadge');
+    const statusSubText = document.getElementById('statusSubText');
+    const chartPatternBadge = document.getElementById('chartPatternBadge');
+    const hitCountEl = document.getElementById('hitCount');
+    const labelNikkeiRate = document.getElementById('labelNikkeiRate');
+    const labelTelecRate = document.getElementById('labelTelecRate');
+    const labelSemiRate = document.getElementById('labelSemiRate');
+    const metricNikkei = document.getElementById('metricNikkei');
+    const metricTelec = document.getElementById('metricTelec');
+    const metricSemi = document.getElementById('metricSemi');
+    const winrateNikkei = document.getElementById('winrateNikkei');
+    const winrateTelec = document.getElementById('winrateTelec');
+    const winrateSemi = document.getElementById('winrateSemi');
+    const tableBody = document.getElementById('tableBody');
+    const sidebar = document.getElementById('sidebar');
+    const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+
+    let intradayChartInstance = null;
+
+    // モバイルサイドバートグル
+    if (toggleSidebarBtn && sidebar) {
+      toggleSidebarBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('hidden');
+        sidebar.classList.toggle('flex');
+        sidebar.classList.toggle('flex-col');
+      });
+    }
+
+    // 朝7:00 通知プレビュー（アラート）表示
+    function triggerMorningToast() {
+      const container = document.getElementById('toast-container');
+      const isDrop = currentOvernightState.nasdaq < 0 || currentOvernightState.sox < 0;
+      const borderCol = isDrop ? 'border-orange-500' : 'border-red-500';
+      const badgeBg = isDrop ? 'bg-orange-500' : 'bg-red-500';
+      const titleCol = isDrop ? 'text-orange-400' : 'text-red-400';
+      const labelText = isDrop ? '🟠 米国市場 下落連動アラート' : '🔴 米国市場 上昇連動アラート';
+
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto bg-slate-900/95 backdrop-blur-md border-l-4 ${borderCol} border border-slate-700 rounded-xl p-4 shadow-2xl toast-enter`;
+      toast.innerHTML = `
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-lg ${badgeBg} flex flex-col items-center justify-center shrink-0 text-white font-black leading-none">
+            <span class="text-[9px]">AM</span>
+            <span class="text-xs mt-0.5">7:00</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs font-black ${titleCol} truncate">${labelText}</p>
+              <button type="button" onclick="this.closest('.toast-enter').remove()" class="text-slate-400 hover:text-white text-xs cursor-pointer">✕</button>
+            </div>
+            <p class="text-xs font-bold text-white mt-1">
+              NASDAQ: ${currentOvernightState.nasdaq > 0 ? '+' : ''}${currentOvernightState.nasdaq}% / SOX: ${currentOvernightState.sox > 0 ? '+' : ''}${currentOvernightState.sox}%
+            </p>
+            <p class="text-[11px] text-slate-300 mt-1">11/18 15分足推移（円/pt）を自動更新済み</p>
+          </div>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentElement) {
+          toast.classList.add('toast-exit');
+          setTimeout(() => toast.remove(), 300);
+        }
+      }, 5000);
+    }
+
+    function refreshData() {
+      try {
+        updateDashboard();
+      } catch (err) {
+        console.error('データ更新エラー:', err);
+      }
+    }
+
+    // 15分足日中値動き推移チャートの描画 (金額/pt表示・ダブルY軸)
+    function renderIntradayChart(patternKey) {
+      const canvasEl = document.getElementById('intradayChart');
+      if (!canvasEl) return;
+      const ctx = canvasEl.getContext('2d');
+      const model = intradayModels[patternKey] || intradayModels.both_down;
+
+      const showNikkei = document.getElementById('toggleNikkei').checked;
+      const showTelec = document.getElementById('toggleTelec').checked;
+      const showSemi = document.getElementById('toggleSemi').checked;
+
+      const datasets = [];
+
+      if (showNikkei) {
+        datasets.push({
+          label: '日経平均 (^N225)',
+          data: model.nikkei,
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37, 99, 235, 0.06)',
+          borderWidth: 2.5,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          tension: 0.2,
+          fill: false,
+          yAxisID: 'yLeft'
+        });
+      }
+
+      if (showTelec) {
+        datasets.push({
+          label: '東京エレクトロン (8035)',
+          data: model.telec,
+          borderColor: '#d97706',
+          backgroundColor: 'rgba(217, 119, 6, 0.06)',
+          borderWidth: 2.5,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          tension: 0.2,
+          fill: false,
+          yAxisID: 'yLeft'
+        });
+      }
+
+      if (showSemi) {
+        datasets.push({
+          label: '半導体ETF (2644)',
+          data: model.semi,
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5, 150, 105, 0.06)',
+          borderWidth: 2.5,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          tension: 0.2,
+          fill: false,
+          yAxisID: 'yRight'
+        });
+      }
+
+      if (intradayChartInstance) {
+        intradayChartInstance.destroy();
+      }
+
+      intradayChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: timeLabels,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: '#0f172a',
+              titleFont: { size: 12, family: 'Inter' },
+              bodyFont: { size: 12, family: 'Inter' },
+              padding: 10,
+              cornerRadius: 6,
+              callbacks: {
+                label: function(context) {
+                  const val = context.parsed.y;
+                  const unit = context.dataset.label.includes('^N225') ? ' pt' : ' 円';
+                  return `${context.dataset.label}: ${Number(val).toLocaleString()}${unit}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: '#f1f5f9' },
+              ticks: {
+                font: { size: 10, family: 'Inter' },
+                color: '#64748b',
+                maxRotation: 0
+              }
+            },
+            yLeft: {
+              type: 'linear',
+              display: showNikkei || showTelec,
+              position: 'left',
+              grid: { color: '#f1f5f9' },
+              ticks: {
+                font: { size: 10, family: 'Inter' },
+                color: '#475569',
+                callback: function(value) {
+                  return Number(value).toLocaleString() + ' 円';
+                }
+              }
+            },
+            yRight: {
+              type: 'linear',
+              display: showSemi,
+              position: 'right',
+              grid: {
+                drawOnChartArea: !(showNikkei || showTelec),
+                color: '#f1f5f9'
+              },
+              ticks: {
+                font: { size: 10, family: 'Inter' },
+                color: '#059669',
+                callback: function(value) {
+                  return Number(value).toLocaleString() + ' 円';
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ダッシュボード全体の自動更新（サマリー・一覧は%表示、15分足グラフは金額表示）
+    function updateDashboard() {
+      const periodYears = parseFloat(periodSelect.value);
+      const query = searchInput.value.trim().toLowerCase();
+
+      const isNasdaqUp = currentOvernightState.nasdaq >= 0;
+      const isSoxUp = currentOvernightState.sox >= 0;
+
+      let patternKey = '';
+      let patternBadgeText = '';
+
+      if (isNasdaqUp && isSoxUp) {
+        patternKey = 'both_up';
+        patternBadgeText = '両方上昇 (NASDAQ + / SOX +)';
+        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span>両方上昇 パターン</span>`;
+      } else if (!isNasdaqUp && !isSoxUp) {
+        patternKey = 'both_down';
+        patternBadgeText = '両方下落 (NASDAQ - / SOX -)';
+        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span><span>両方下落 パターン</span>`;
+      } else if (isNasdaqUp && !isSoxUp) {
+        patternKey = 'nasdaq_up_sox_down';
+        patternBadgeText = 'NASDAQ上昇 / SOX下落';
+        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span><span>NASDAQ強・SOX弱 パターン</span>`;
+      } else {
+        patternKey = 'nasdaq_down_sox_up';
+        patternBadgeText = 'NASDAQ下落 / SOX上昇';
+        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span><span>NASDAQ弱・SOX強 パターン</span>`;
+      }
+
+      statusSubText.textContent = `前日実績: NASDAQ ${currentOvernightState.nasdaq > 0 ? '+' : ''}${currentOvernightState.nasdaq}% / SOX ${currentOvernightState.sox > 0 ? '+' : ''}${currentOvernightState.sox}%`;
+      chartPatternBadge.textContent = `${patternBadgeText} 時の想定15分足推移 (金額表記)`;
+
+      let filtered = mockDatabase.filter(item => {
+        if (patternKey === 'both_up') return item.nasdaq > 0 && item.sox > 0;
+        if (patternKey === 'both_down') return item.nasdaq < 0 && item.sox < 0;
+        if (patternKey === 'nasdaq_up_sox_down') return item.nasdaq > 0 && item.sox < 0;
+        return item.nasdaq < 0 && item.sox > 0;
+      });
+
+      const currentYear = 2026;
+      filtered = filtered.filter(item => {
+        const itemYear = parseInt(item.date.split('-')[0], 10);
+        return (currentYear - itemYear) < periodYears;
+      });
+
+      if (query) {
+        filtered = filtered.filter(item => item.date.toLowerCase().includes(query));
+      }
+
+      hitCountEl.textContent = filtered.length;
+
+      const isOverallUp = (isNasdaqUp || isSoxUp);
+      const rateLabelText = isOverallUp ? '上昇確率' : '下落確率';
+      labelNikkeiRate.textContent = rateLabelText;
+      labelTelecRate.textContent = rateLabelText;
+      labelSemiRate.textContent = rateLabelText;
+
+      if (filtered.length === 0) {
+        metricNikkei.textContent = "N/A";
+        metricTelec.textContent = "N/A";
+        metricSemi.textContent = "N/A";
+        winrateNikkei.textContent = "--%";
+        winrateTelec.textContent = "--%";
+        winrateSemi.textContent = "--%";
+        tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400">指定された条件に該当する過去データがありません。</td></tr>`;
+      } else {
+        const avgNikkei = (filtered.reduce((acc, curr) => acc + curr.nikkei, 0) / filtered.length).toFixed(2);
+        const avgTelec = (filtered.reduce((acc, curr) => acc + curr.telec, 0) / filtered.length).toFixed(2);
+        const avgSemi = (filtered.reduce((acc, curr) => acc + curr.semi, 0) / filtered.length).toFixed(2);
+
+        const countNikkei = filtered.filter(i => isOverallUp ? i.nikkei > 0 : i.nikkei < 0).length;
+        const countTelec = filtered.filter(i => isOverallUp ? i.telec > 0 : i.telec < 0).length;
+        const countSemi = filtered.filter(i => isOverallUp ? i.semi > 0 : i.semi < 0).length;
+
+        const rateNikkei = ((countNikkei / filtered.length) * 100).toFixed(0);
+        const rateTelec = ((countTelec / filtered.length) * 100).toFixed(0);
+        const rateSemi = ((countSemi / filtered.length) * 100).toFixed(0);
+
+        metricNikkei.className = `text-3xl font-bold font-mono mb-2 ${avgNikkei >= 0 ? 'text-pos' : 'text-down'}`;
+        metricNikkei.textContent = `${avgNikkei > 0 ? '+' : ''}${avgNikkei}%`;
+
+        metricTelec.className = `text-3xl font-bold font-mono mb-2 ${avgTelec >= 0 ? 'text-pos' : 'text-down'}`;
+        metricTelec.textContent = `${avgTelec > 0 ? '+' : ''}${avgTelec}%`;
+
+        metricSemi.className = `text-3xl font-bold font-mono mb-2 ${avgSemi >= 0 ? 'text-pos' : 'text-down'}`;
+        metricSemi.textContent = `${avgSemi > 0 ? '+' : ''}${avgSemi}%`;
+
+        winrateNikkei.textContent = `${rateNikkei}% (${countNikkei}/${filtered.length}回)`;
+        winrateTelec.textContent = `${rateTelec}% (${countTelec}/${filtered.length}回)`;
+        winrateSemi.textContent = `${rateSemi}% (${countSemi}/${filtered.length}回)`;
+
+        tableBody.innerHTML = filtered.map(row => `
+          <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+            <td class="p-3 font-semibold text-slate-800">${row.date}</td>
+            <td class="p-3 text-right font-medium ${row.nasdaq >= 0 ? 'text-pos' : 'text-down'}">${row.nasdaq > 0 ? '+' : ''}${row.nasdaq.toFixed(2)}%</td>
+            <td class="p-3 text-right font-medium ${row.sox >= 0 ? 'text-pos' : 'text-down'}">${row.sox > 0 ? '+' : ''}${row.sox.toFixed(2)}%</td>
+            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.nikkei >= 0 ? 'text-pos' : 'text-down'}">${row.nikkei > 0 ? '+' : ''}${row.nikkei.toFixed(2)}%</td>
+            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.telec >= 0 ? 'text-pos' : 'text-down'}">${row.telec > 0 ? '+' : ''}${row.telec.toFixed(2)}%</td>
+            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.semi >= 0 ? 'text-pos' : 'text-down'}">${row.semi > 0 ? '+' : ''}${row.semi.toFixed(2)}%</td>
+          </tr>
+        `).join('');
+      }
+
+      renderIntradayChart(patternKey);
+    }
+
+    // CSV保存
+    function exportCSV() {
+      try {
+        const isNasdaqUp = currentOvernightState.nasdaq >= 0;
+        const isSoxUp = currentOvernightState.sox >= 0;
+
+        const filtered = mockDatabase.filter(item => {
+          if (isNasdaqUp && isSoxUp) return item.nasdaq > 0 && item.sox > 0;
+          if (!isNasdaqUp && !isSoxUp) return item.nasdaq < 0 && item.sox < 0;
+          if (isNasdaqUp && !isSoxUp) return item.nasdaq > 0 && item.sox < 0;
+          return item.nasdaq < 0 && item.sox > 0;
+        });
+
+        let csv = "DATE,NASDAQ_CHG_PCT,SOX_CHG_PCT,NIKKEI_NEXT_PCT,TOKYO_ELEC_NEXT_PCT,SEMI_ETF_NEXT_PCT\n";
+        filtered.forEach(r => {
+          csv += `${r.date},${r.nasdaq},${r.sox},${r.nikkei},${r.telec},${r.semi}\n`;
+        });
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nasdaq_sox_nikkei_15m_app.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('CSV出力エラー:', err);
+      }
+    }
+
+    // イベントリスナー登録
+    periodSelect.addEventListener('change', refreshData);
+    searchInput.addEventListener('input', refreshData);
+    document.getElementById('toggleNikkei').addEventListener('change', refreshData);
+    document.getElementById('toggleTelec').addEventListener('change', refreshData);
+    document.getElementById('toggleSemi').addEventListener('change', refreshData);
+
+    // 初期実行
+    window.addEventListener('DOMContentLoaded', () => {
+      refreshData();
+    });
+  </script>
+</body>
+</html>
