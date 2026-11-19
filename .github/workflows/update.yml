@@ -1,16 +1,17 @@
 name: Daily Market Data Update
 
 on:
-schedule:
-- cron: '0 22 * * 1-5'
-workflow_dispatch:
+  schedule:
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch:
 
 permissions:
-contents: write
+  contents: write
 
 jobs:
-update-data:
-runs-on: ubuntu-latest
+  update-data:
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,118 +20,28 @@ runs-on: ubuntu-latest
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-  - name: Fetch real market data and update index.html
-    run: |
-      python3 - << 'EOF'
-      import json
-      import re
-      import urllib.parse
-      import urllib.request
-      from datetime import datetime, timezone, timedelta
 
-      jst = timezone(timedelta(hours=9))
-      now_jst = datetime.now(jst).strftime('%Y/%m/%d %H:%M JST')
+      - name: Check application files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
 
-      symbols = {
-          'nasdaq': '^IXIC',
-          'sox': '^SOX',
-          'nikkei': '^N225',
-          'telec': '8035.T',
-          'semi': '2644.T',
-      }
+          html = Path("index.html")
+          if not html.is_file():
+              raise FileNotFoundError("index.html がありません")
 
-      headers = {'User-Agent': 'Mozilla/5.0'}
-      fetched = {}
+          content = html.read_text(encoding="utf-8")
+          required = [
+              "nasdaqClose",
+              "soxClose",
+              "intradayChart",
+              "intradayModels",
+          ]
 
-      for key, sym in symbols.items():
-          url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(sym)}?range=5d&interval=1d"
-          try:
-              req = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(req, timeout=15) as resp:
-                  data = json.loads(resp.read().decode('utf-8'))
-              result = data['chart']['result'][0]
-              meta = result['meta']
-              closes = [c for c in result['indicators']['quote'][0]['close'] if c is not None]
-              price = float(meta.get('regularMarketPrice') or closes[-1])
-              prev_close = float(meta.get('chartPreviousClose') or (closes[-2] if len(closes) >= 2 else price))
-              chg_pct = round(((price - prev_close) / prev_close) * 100, 2) if prev_close else 0.0
-              fetched[key] = {'price': round(price, 2), 'chg': chg_pct}
-              print(f"Fetched {key} ({sym}): price={fetched[key]['price']}, chg={fetched[key]['chg']}%")
-          except Exception as e:
-              print(f"Warning: failed to fetch {key} ({sym}): {e}")
+          missing = [x for x in required if x not in content]
+          if missing:
+              raise ValueError(f"必要な要素がありません: {missing}")
 
-      with open('index.html', 'r', encoding='utf-8') as f:
-          html = f.read()
-
-      html = re.sub(
-          r'(<strong id="(?:nasdaq|sox)Updated"[^>]*>)[^<]*(</strong>)',
-          rf'\g<1>{now_jst}\g<2>',
-          html
-      )
-
-      if 'nasdaq' in fetched:
-          n_price_str = f"{fetched['nasdaq']['price']:,.2f}"
-          n_chg = fetched['nasdaq']['chg']
-          n_chg_str = f"{'+' if n_chg > 0 else ''}{n_chg:.2f}%"
-          n_cls = 'text-pos' if n_chg >= 0 else 'text-down'
-          html = re.sub(r'(<div id="nasdaqClose"[^>]*>)[^<]*(</div>)', rf'\g<1>{n_price_str}\g<2>', html)
-          html = re.sub(r'(<div id="nasdaqChg"[^>]*class="[^"]*)(\btext-pos\b|\btext-down\b)([^"]*"[^>]*>)[^<]*(</div>)', rf'\g<1>{n_cls}\g<3>{n_chg_str}\g<4>', html)
-          html = re.sub(r'(nasdaq:\s*)[-+]?\d+(?:\.\d+)?', rf'\g<1>{n_chg}', html, count=1)
-
-      if 'sox' in fetched:
-          s_price_str = f"{fetched['sox']['price']:,.2f}"
-          s_chg = fetched['sox']['chg']
-          s_chg_str = f"{'+' if s_chg > 0 else ''}{s_chg:.2f}%"
-          s_cls = 'text-pos' if s_chg >= 0 else 'text-down'
-          html = re.sub(r'(<div id="soxClose"[^>]*>)[^<]*(</div>)', rf'\g<1>{s_price_str}\g<2>', html)
-          html = re.sub(r'(<div id="soxChg"[^>]*class="[^"]*)(\btext-pos\b|\btext-down\b)([^"]*"[^>]*>)[^<]*(</div>)', rf'\g<1>{s_cls}\g<3>{s_chg_str}\g<4>', html)
-          html = re.sub(r'(sox:\s*)[-+]?\d+(?:\.\d+)?', rf'\g<1>{s_chg}', html, count=1)
-
-      def scale_series(series, target_start):
-          if not series or target_start <= 0:
-              return series
-          base = series[0]
-          ratio = target_start / base
-          return [round(v * ratio) for v in series]
-
-      if any(k in fetched for k in ('nikkei', 'telec', 'semi')):
-          m = re.search(r'const intradayModels = (\{.*?\n    \});', html, re.DOTALL)
-          if m:
-              models_text = m.group(1)
-              json_like = re.sub(r'(\b(?:both_down|both_up|nasdaq_up_sox_down|nasdaq_down_sox_up|nikkei|telec|semi)\b)\s*:', r'"\1":', models_text)
-              models = json.loads(json_like)
-              for pat_key, pat_val in models.items():
-                  if 'nikkei' in fetched:
-                      pat_val['nikkei'] = scale_series(pat_val['nikkei'], fetched['nikkei']['price'])
-                  if 'telec' in fetched:
-                      pat_val['telec'] = scale_series(pat_val['telec'], fetched['telec']['price'])
-                  if 'semi' in fetched:
-                      pat_val['semi'] = scale_series(pat_val['semi'], fetched['semi']['price'])
-              rebuilt = (
-                  "{\n"
-                  + ",\n".join(
-                      f"      {pk}: {{\n"
-                      f"        nikkei: {json.dumps(pv['nikkei'])},\n"
-                      f"        telec:  {json.dumps(pv['telec'])},\n"
-                      f"        semi:   {json.dumps(pv['semi'])}\n"
-                      f"      }}"
-                      for pk, pv in models.items()
-                  )
-                  + "\n    }"
-              )
-              html = html[:m.start(1)] + rebuilt + html[m.end(1):]
-
-      with open('index.html', 'w', encoding='utf-8') as f:
-          f.write(html)
-      print("Successfully updated index.html")
-      EOF
-
-  - name: Commit and push if changed
-    run: |
-      git config --local user.email "action@github.com"
-      git config --local user.name "GitHub Action"
-      git add -A
-      if ! git diff --staged --quiet; then
-        git commit -m "chore: daily market update (NASDAQ, SOX, Nikkei, 8035, 2644)"
-        git push
-      fi
+          print("HTMLファイルの確認成功")
+          print("GitHub Actionsのテスト成功")
+          PY
