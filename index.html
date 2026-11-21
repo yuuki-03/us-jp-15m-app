@@ -114,7 +114,7 @@
           シミュレーション期間
         </label>
         <select id="periodSelect" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500 shadow-sm font-medium">
-          <option value="0.2">直近 60 日間（統計未登録）</option>
+          <option value="0.2">直近 60 日間</option>
           <option value="1">過去 1 年間</option>
           <option value="2" selected>過去 2 年間 (標準)</option>
           <option value="3">過去 3 年間</option>
@@ -122,7 +122,7 @@
           <option value="10">過去 10年間</option>
         </select>
         <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-          NASDAQ・SOXの実際の終値を取得します。過去統計は現在未登録です。
+          NASDAQ・SOXの実際の終値を取得します。
         </p>
       </div>
 
@@ -350,7 +350,7 @@
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
         <div class="flex items-center gap-2">
           <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            類似動向の過去実績一覧（検証済みデータ未登録）
+            類似動向の過去実績一覧
           </h3>
           <span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono font-medium border border-slate-200">
             抽出件数: <span id="hitCount" class="font-bold text-slate-900">--</span> 件
@@ -685,61 +685,61 @@ async function loadHistory() {
     }
 
     // ダッシュボード全体の自動更新（サマリー・一覧は%表示、15分足グラフは金額表示）
-    function updateDashboard() {
-      const periodYears = parseFloat(periodSelect.value);
-      const query = searchInput.value.trim().toLowerCase();
-
-      const isNasdaqUp = currentOvernightState.nasdaq >= 0;
-      const isSoxUp = currentOvernightState.sox >= 0;
-
-      let patternKey = '';
-      let patternBadgeText = '';
-
-      if (isNasdaqUp && isSoxUp) {
-        patternKey = 'both_up';
-        patternBadgeText = '両方上昇 (NASDAQ + / SOX +)';
-        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span>両方上昇 パターン</span>`;
-      } else if (!isNasdaqUp && !isSoxUp) {
-        patternKey = 'both_down';
-        patternBadgeText = '両方下落 (NASDAQ - / SOX -)';
-        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span><span>両方下落 パターン</span>`;
-      } else if (isNasdaqUp && !isSoxUp) {
-        patternKey = 'nasdaq_up_sox_down';
-        patternBadgeText = 'NASDAQ上昇 / SOX下落';
-        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span><span>NASDAQ強・SOX弱 パターン</span>`;
+    function historyCutoff(period, now = new Date()) {
+      const today = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Tokyo'}).format(now);
+      const [year, month, day] = today.split('-').map(Number);
+      const cutoff = new Date(Date.UTC(year, month - 1, day));
+      if (period === 0.2) {
+        cutoff.setUTCDate(cutoff.getUTCDate() - 59);
       } else {
-        patternKey = 'nasdaq_down_sox_up';
-        patternBadgeText = 'NASDAQ下落 / SOX上昇';
-        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span><span>NASDAQ弱・SOX強 パターン</span>`;
+        cutoff.setUTCFullYear(year - period);
+        if (cutoff.getUTCMonth() !== month - 1) cutoff.setUTCDate(0);
       }
+      return cutoff.toISOString().slice(0, 10);
+    }
 
-      statusSubText.textContent = `前日実績: NASDAQ ${currentOvernightState.nasdaq > 0 ? '+' : ''}${currentOvernightState.nasdaq}% / SOX ${currentOvernightState.sox > 0 ? '+' : ''}${currentOvernightState.sox}%`;
-      // 実データの日時・取得状況は renderIntradayChart で表示する
+    function historyPattern(nasdaq, sox) {
+      if (!Number.isFinite(nasdaq) || !Number.isFinite(sox) || nasdaq === 0 || sox === 0) return '';
+      if (nasdaq > 0) return sox > 0 ? 'both_up' : 'nasdaq_up_sox_down';
+      return sox < 0 ? 'both_down' : 'nasdaq_down_sox_up';
+    }
 
-      let filtered = mockDatabase.filter(item => {
-        if (patternKey === 'both_up') return item.nasdaq > 0 && item.sox > 0;
-        if (patternKey === 'both_down') return item.nasdaq < 0 && item.sox < 0;
-        if (patternKey === 'nasdaq_up_sox_down') return item.nasdaq > 0 && item.sox < 0;
-        return item.nasdaq < 0 && item.sox > 0;
-      });
+    function currentHistoryPattern() {
+      const {nasdaq, sox} = liveMarket?.us || {};
+      return nasdaq?.date && nasdaq.date === sox?.date
+        ? historyPattern(nasdaq.change_pct, sox.change_pct)
+        : '';
+    }
 
-      const currentYear = new Date().getFullYear();
-      filtered = filtered.filter(item => {
-        const itemYear = parseInt(item.date.split('-')[0], 10);
-        return (currentYear - itemYear) < periodYears;
-      });
+    function filteredHistory(pattern) {
+      if (!pattern) return [];
+      const cutoff = historyCutoff(Number(periodSelect.value));
+      const query = searchInput.value.trim();
+      return mockDatabase.filter(row => row.date >= cutoff &&
+        (!query || row.date.includes(query)) &&
+        historyPattern(row.nasdaq, row.sox) === pattern);
+    }
 
-      if (query) {
-        filtered = filtered.filter(item => item.date.toLowerCase().includes(query));
-      }
+    function formatHistoryPercent(value) {
+      return Number.isFinite(value) ? (value > 0 ? '+' : '') + value.toFixed(2) + '%' : '—';
+    }
 
+    function updateDashboard() {
+      const patternKey = currentHistoryPattern();
+      const badges = {
+        both_up: ['bg-red-500', '両方上昇 パターン'],
+        both_down: ['bg-orange-500', '両方下落 パターン'],
+        nasdaq_up_sox_down: ['bg-blue-600', 'NASDAQ強・SOX弱 パターン'],
+        nasdaq_down_sox_up: ['bg-indigo-600', 'NASDAQ弱・SOX強 パターン']
+      };
+      const [color, label] = badges[patternKey] || ['bg-slate-400', '該当パターンなし'];
+      statusBadge.innerHTML = '<span class="w-2.5 h-2.5 rounded-full ' + color + '"></span><span>' + label + '</span>';
+
+      const filtered = filteredHistory(patternKey);
       hitCountEl.textContent = filtered.length;
-
-      const isOverallUp = (isNasdaqUp || isSoxUp);
-      const rateLabelText = isOverallUp ? '上昇確率' : '下落確率';
-      labelNikkeiRate.textContent = rateLabelText;
-      labelTelecRate.textContent = rateLabelText;
-      labelSemiRate.textContent = rateLabelText;
+      for (const element of [labelNikkeiRate, labelTelecRate, labelSemiRate]) {
+        element.textContent = '下落確率';
+      }
 
       if (filtered.length === 0) {
         metricNikkei.textContent = "N/A";
@@ -750,61 +750,29 @@ async function loadHistory() {
         winrateSemi.textContent = "--%";
         tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400">指定された条件に該当する過去データがありません。</td></tr>`;
       } else {
-const average = (key) => {
-  const values = filtered
-    .map(r => r[key])
-    .filter(v => Number.isFinite(v));
-
-  return values.length
-    ? (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(2)
-    : '--';
-};
-
-const avgNikkei = average('nikkei');
-const avgTelec = average('telec');
-const avgSemi = average('semi');
-
-        const countNikkei = filtered.filter(i => isOverallUp ? i.nikkei > 0 : i.nikkei < 0).length;
-        const countTelec = filtered.filter(i => isOverallUp ? i.telec > 0 : i.telec < 0).length;
-        const countSemi = filtered.filter(i => isOverallUp ? i.semi > 0 : i.semi < 0).length;
-
-const validNikkei = filtered.filter(r => Number.isFinite(r.nikkei));
-const validTelec = filtered.filter(r => Number.isFinite(r.telec));
-const validSemi = filtered.filter(r => Number.isFinite(r.semi));
-
-const rateNikkei = validNikkei.length
-  ? ((countNikkei / validNikkei.length) * 100).toFixed(0)
-  : '--';
-
-const rateTelec = validTelec.length
-  ? ((countTelec / validTelec.length) * 100).toFixed(0)
-  : '--';
-
-const rateSemi = validSemi.length
-  ? ((countSemi / validSemi.length) * 100).toFixed(0)
-  : '--';
-
-        metricNikkei.className = `text-3xl font-bold font-mono mb-2 ${avgNikkei >= 0 ? 'text-pos' : 'text-down'}`;
-        metricNikkei.textContent = `${avgNikkei > 0 ? '+' : ''}${avgNikkei}%`;
-
-        metricTelec.className = `text-3xl font-bold font-mono mb-2 ${avgTelec >= 0 ? 'text-pos' : 'text-down'}`;
-        metricTelec.textContent = `${avgTelec > 0 ? '+' : ''}${avgTelec}%`;
-
-        metricSemi.className = `text-3xl font-bold font-mono mb-2 ${avgSemi >= 0 ? 'text-pos' : 'text-down'}`;
-        metricSemi.textContent = `${avgSemi > 0 ? '+' : ''}${avgSemi}%`;
-
-winrateNikkei.textContent = `${rateNikkei}% (${countNikkei}/${validNikkei.length}回)`;
-winrateTelec.textContent = `${rateTelec}% (${countTelec}/${validTelec.length}回)`;
-winrateSemi.textContent = `${rateSemi}% (${countSemi}/${validSemi.length}回)`;
+        for (const [key, metric, probability] of [
+          ['nikkei', metricNikkei, winrateNikkei],
+          ['telec', metricTelec, winrateTelec],
+          ['semi', metricSemi, winrateSemi]
+        ]) {
+          const values = filtered.map(row => row[key]).filter(Number.isFinite);
+          const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+          const declines = values.filter(value => value < 0).length;
+          metric.className = 'text-3xl font-bold font-mono mb-2 ' + (average < 0 ? 'text-down' : 'text-pos');
+          metric.textContent = formatHistoryPercent(average);
+          probability.textContent = values.length
+            ? (100 * declines / values.length).toFixed(0) + '% (' + declines + '/' + values.length + '回)'
+            : '—';
+        }
 
         tableBody.innerHTML = filtered.map(row => `
           <tr class="hover:bg-slate-50 transition border-b border-slate-100">
             <td class="p-3 font-semibold text-slate-800">${row.date}</td>
-            <td class="p-3 text-right font-medium ${row.nasdaq >= 0 ? 'text-pos' : 'text-down'}">${row.nasdaq > 0 ? '+' : ''}${row.nasdaq.toFixed(2)}%</td>
-            <td class="p-3 text-right font-medium ${row.sox >= 0 ? 'text-pos' : 'text-down'}">${row.sox > 0 ? '+' : ''}${row.sox.toFixed(2)}%</td>
-            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.nikkei >= 0 ? 'text-pos' : 'text-down'}">${row.nikkei > 0 ? '+' : ''}${row.nikkei.toFixed(2)}%</td>
-            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.telec >= 0 ? 'text-pos' : 'text-down'}">${row.telec > 0 ? '+' : ''}${row.telec.toFixed(2)}%</td>
-            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.semi >= 0 ? 'text-pos' : 'text-down'}">${row.semi > 0 ? '+' : ''}${row.semi.toFixed(2)}%</td>
+            <td class="p-3 text-right font-medium ${row.nasdaq >= 0 ? 'text-pos' : 'text-down'}">${formatHistoryPercent(row.nasdaq)}</td>
+            <td class="p-3 text-right font-medium ${row.sox >= 0 ? 'text-pos' : 'text-down'}">${formatHistoryPercent(row.sox)}</td>
+            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.nikkei >= 0 ? 'text-pos' : 'text-down'}">${formatHistoryPercent(row.nikkei)}</td>
+            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.telec >= 0 ? 'text-pos' : 'text-down'}">${formatHistoryPercent(row.telec)}</td>
+            <td class="p-3 text-right bg-slate-50/80 font-bold ${row.semi >= 0 ? 'text-pos' : 'text-down'}">${formatHistoryPercent(row.semi)}</td>
           </tr>
         `).join('');
       }
@@ -815,19 +783,11 @@ winrateSemi.textContent = `${rateSemi}% (${countSemi}/${validSemi.length}回)`;
     // CSV保存
     function exportCSV() {
       try {
-        const isNasdaqUp = currentOvernightState.nasdaq >= 0;
-        const isSoxUp = currentOvernightState.sox >= 0;
-
-        const filtered = mockDatabase.filter(item => {
-          if (isNasdaqUp && isSoxUp) return item.nasdaq > 0 && item.sox > 0;
-          if (!isNasdaqUp && !isSoxUp) return item.nasdaq < 0 && item.sox < 0;
-          if (isNasdaqUp && !isSoxUp) return item.nasdaq > 0 && item.sox < 0;
-          return item.nasdaq < 0 && item.sox > 0;
-        });
+        const filtered = filteredHistory(currentHistoryPattern());
 
         let csv = "DATE,NASDAQ_CHG_PCT,SOX_CHG_PCT,NIKKEI_NEXT_PCT,TOKYO_ELEC_NEXT_PCT,SEMI_ETF_NEXT_PCT\n";
         filtered.forEach(r => {
-          csv += `${r.date},${r.nasdaq},${r.sox},${r.nikkei},${r.telec},${r.semi}\n`;
+          csv += `${r.date},${r.nasdaq},${r.sox},${r.nikkei ?? ''},${r.telec ?? ''},${r.semi ?? ''}\n`;
         });
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
