@@ -33,7 +33,16 @@ for key, ticker in [('nasdaq', '^IXIC'), ('sox', '^SOX')]:
         if len(rows) < 2:
             raise ValueError('終値が2営業日分取得できません')
         (prev_time, prev), (dt, close) = rows[-2:]
-        result['us'][key] = {'close': close, 'change_pct': round((close / prev - 1) * 100, 4), 'date': dt.date().isoformat(), 'fetched_at': now.isoformat()}
+        open_price = valid(df.loc[dt, 'Open'])
+        result['us'][key] = {
+            'open': open_price,
+            'close': close,
+            'change_pct': round((close / prev - 1) * 100, 4),
+            'date': dt.date().isoformat(),
+            'fetched_at': now.isoformat()
+        }
+
+
     except Exception as exc:
         result['errors'][key] = str(exc)[:200]
 
