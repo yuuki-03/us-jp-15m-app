@@ -2,6 +2,8 @@ name: Build 10-Year Market History
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '30 23 * * *'
 
 permissions:
   contents: write
