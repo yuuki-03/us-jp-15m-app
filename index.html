@@ -735,17 +735,39 @@ async function loadHistory() {
         winrateSemi.textContent = "--%";
         tableBody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400">指定された条件に該当する過去データがありません。</td></tr>`;
       } else {
-        const avgNikkei = (filtered.reduce((acc, curr) => acc + curr.nikkei, 0) / filtered.length).toFixed(2);
-        const avgTelec = (filtered.reduce((acc, curr) => acc + curr.telec, 0) / filtered.length).toFixed(2);
-        const avgSemi = (filtered.reduce((acc, curr) => acc + curr.semi, 0) / filtered.length).toFixed(2);
+const average = (key) => {
+  const values = filtered
+    .map(r => r[key])
+    .filter(v => Number.isFinite(v));
+
+  return values.length
+    ? (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(2)
+    : '--';
+};
+
+const avgNikkei = average('nikkei');
+const avgTelec = average('telec');
+const avgSemi = average('semi');
 
         const countNikkei = filtered.filter(i => isOverallUp ? i.nikkei > 0 : i.nikkei < 0).length;
         const countTelec = filtered.filter(i => isOverallUp ? i.telec > 0 : i.telec < 0).length;
         const countSemi = filtered.filter(i => isOverallUp ? i.semi > 0 : i.semi < 0).length;
 
-        const rateNikkei = ((countNikkei / filtered.length) * 100).toFixed(0);
-        const rateTelec = ((countTelec / filtered.length) * 100).toFixed(0);
-        const rateSemi = ((countSemi / filtered.length) * 100).toFixed(0);
+const validNikkei = filtered.filter(r => Number.isFinite(r.nikkei));
+const validTelec = filtered.filter(r => Number.isFinite(r.telec));
+const validSemi = filtered.filter(r => Number.isFinite(r.semi));
+
+const rateNikkei = validNikkei.length
+  ? ((countNikkei / validNikkei.length) * 100).toFixed(0)
+  : '--';
+
+const rateTelec = validTelec.length
+  ? ((countTelec / validTelec.length) * 100).toFixed(0)
+  : '--';
+
+const rateSemi = validSemi.length
+  ? ((countSemi / validSemi.length) * 100).toFixed(0)
+  : '--';
 
         metricNikkei.className = `text-3xl font-bold font-mono mb-2 ${avgNikkei >= 0 ? 'text-pos' : 'text-down'}`;
         metricNikkei.textContent = `${avgNikkei > 0 ? '+' : ''}${avgNikkei}%`;
@@ -756,9 +778,9 @@ async function loadHistory() {
         metricSemi.className = `text-3xl font-bold font-mono mb-2 ${avgSemi >= 0 ? 'text-pos' : 'text-down'}`;
         metricSemi.textContent = `${avgSemi > 0 ? '+' : ''}${avgSemi}%`;
 
-        winrateNikkei.textContent = `${rateNikkei}% (${countNikkei}/${filtered.length}回)`;
-        winrateTelec.textContent = `${rateTelec}% (${countTelec}/${filtered.length}回)`;
-        winrateSemi.textContent = `${rateSemi}% (${countSemi}/${filtered.length}回)`;
+winrateNikkei.textContent = `${rateNikkei}% (${countNikkei}/${validNikkei.length}回)`;
+winrateTelec.textContent = `${rateTelec}% (${countTelec}/${validTelec.length}回)`;
+winrateSemi.textContent = `${rateSemi}% (${countSemi}/${validSemi.length}回)`;
 
         tableBody.innerHTML = filtered.map(row => `
           <tr class="hover:bg-slate-50 transition border-b border-slate-100">
