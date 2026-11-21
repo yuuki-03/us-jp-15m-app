@@ -381,7 +381,31 @@
   <script>
     // 過去データ（全4パターン対応・小幅変動も含む自動判別用データベース）
     let mockDatabase = []; // 架空の過去実績は表示しない
+async function loadHistory() {
+  try {
+    const response = await fetch(
+      './data/history.json?t=' + Date.now(),
+      { cache: 'no-store' }
+    );
 
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data.rows)) {
+      throw new Error('過去データの形式が不正です');
+    }
+
+    mockDatabase = data.rows;
+    updateDashboard();
+
+    console.log('過去実績を読み込み:', mockDatabase.length, '件');
+  } catch (error) {
+    console.error('過去実績の読み込みに失敗:', error);
+  }
+}
     // 15分刻みの取引時間ラベル (09:00 ～ 15:30)
     const timeLabels = [
       '09:00', '09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30',
