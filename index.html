@@ -207,7 +207,11 @@
             <span>🔄</span> 更新
           </button>
         </div>
-        <div class="grid grid-cols-2 gap-2 my-2">
+<div class="mb-2">
+    <div class="text-[10px] text-slate-400 uppercase tracking-wider">始値</div>
+    <div id="nasdaqOpen" class="text-xl font-bold font-mono text-slate-900">--</div>
+</div>
+<div class="grid grid-cols-2 gap-2 my-2">
           <div>
             <div class="text-[10px] text-slate-400 uppercase tracking-wider">終値</div>
             <div id="nasdaqClose" class="text-xl font-bold font-mono text-slate-900">--</div>
@@ -240,6 +244,10 @@
             <span>🔄</span> 更新
           </button>
         </div>
+        <div class="mb-2">
+    <div class="text-[10px] text-slate-400 uppercase tracking-wider">始値</div>
+    <div id="soxOpen" class="text-xl font-bold font-mono text-slate-900">--</div>
+</div>
         <div class="grid grid-cols-2 gap-2 my-2">
           <div>
             <div class="text-[10px] text-slate-400 uppercase tracking-wider">終値</div>
@@ -428,7 +436,13 @@ async function loadHistory() {
         const data = await response.json();
         liveMarket = data;
         for (const [key, prefix] of [['nasdaq','nasdaq'], ['sox','sox']]) {
-          const quote = data.us?.[key];
+        const quote = data.us?.[key];
+        const openElement = document.getElementById(prefix + 'Open');
+        if (openElement) {
+            openElement.textContent = quote?.open != null
+                ? Number(quote.open).toLocaleString('ja-JP', {maximumFractionDigits: 2})
+                : '未取得';
+        }
           document.getElementById(prefix+'Close').textContent = quote?.close != null ? Number(quote.close).toLocaleString('ja-JP',{maximumFractionDigits:2}) : '未取得';
           document.getElementById(prefix+'Chg').textContent = quote?.change_pct != null ? (quote.change_pct>0?'+':'') + Number(quote.change_pct).toFixed(2) + '%' : '--';
           document.getElementById(prefix+'TargetDate').textContent = dateJst(quote?.date);
