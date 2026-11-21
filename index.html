@@ -812,10 +812,11 @@ async function loadHistory() {
     document.getElementById('toggleSemi').addEventListener('change', refreshData);
 
     // 初期実行
-    window.addEventListener('DOMContentLoaded', () => {
-      loadMarket();
-      setInterval(loadMarket, 60 * 1000);
-    });
+window.addEventListener('DOMContentLoaded', () => {
+  loadHistory();
+  loadMarket();
+  setInterval(loadMarket, 60 * 1000);
+});
   </script>
 </body>
 </html>
